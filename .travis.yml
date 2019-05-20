@@ -12,13 +12,19 @@ addons:
 env:
   global:
     - BRANCH=`echo ${TRAVIS_BRANCH} | sed 's/[^a-zA-Z0-9._-]/\_/' | awk '{print tolower($0)}'`
-    - ROOT_PASSWORD="root"
+    - CONTAINER_PASSWORD="root"
+    - CONTAINER_USERNAME="root"
+    - LANG=en_US.UTF-8
+    - LC_ALL=en_US.UTF-8
+    - LANGUAGE=en_US.UTF-8
 
 script:
   - docker build . -t $DOCKER_IMAGE:$TRAVIS_COMMIT
-  - docker run -d -P --name base $DOCKER_IMAGE:$TRAVIS_COMMIT
+  - docker run -d -P --name base $DOCKER_IMAGE:$TRAVIS_COMMIT /usr/sbin/sshd -D
   - CONTAINER_PORT=$(echo $(docker port base) | sed -e 's,^.*:,:,g' -e 's,.*:\([0-9]*\).*,\1,g' -e 's,[^0-9],,g')
-#  - sshpass -p 'root' ssh root@localhost -p $CONTAINER_PORT
+  - CONTAINER_IP=$(echo $(docker inspect -f '{{.NetworkSettings.IPAddress }}' $(docker ps -aq)))
+  - echo $CONTAINER_IP $CONTAINER_PORT $CONTAINER_USERNAME $CONTAINER_PASSWORD
+  - sshpass -p $CONTAINER_PASSWORD ssh $CONTAINER_USERNAME@localhost -p $CONTAINER_PORT -o StrictHostKeyChecking=no exit
 
 before_deploy:
   - if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin; fi
