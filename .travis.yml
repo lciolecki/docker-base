@@ -1,0 +1,41 @@
+sudo: true
+
+services:
+  - docker
+
+addons:
+  apt:
+    packages:
+      - sshpass
+      - ssh
+
+env:
+  global:
+    - BRANCH=`echo ${TRAVIS_BRANCH} | sed 's/[^a-zA-Z0-9._-]/\_/' | awk '{print tolower($0)}'`
+    - ROOT_PASSWORD="root"
+
+script:
+  - docker build . -t $DOCKER_IMAGE:$TRAVIS_COMMIT
+  - docker run -d -P --name base $DOCKER_IMAGE:$TRAVIS_COMMIT
+  - CONTAINER_PORT=$(echo $(docker port base) | sed -e 's,^.*:,:,g' -e 's,.*:\([0-9]*\).*,\1,g' -e 's,[^0-9],,g')
+#  - sshpass -p 'root' ssh root@localhost -p $CONTAINER_PORT
+
+before_deploy:
+  - if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin; fi
+
+deploy:
+  - name: "Deploy latest version"
+    provider: script
+    script: docker tag $DOCKER_IMAGE:$TRAVIS_COMMIT $DOCKER_IMAGE:latest && docker push $DOCKER_IMAGE:latest
+    on:
+      all_branches: true
+      fork: false
+      cron: false
+
+  - name: "Deploy tag version"
+    provider: script
+    script: docker tag $DOCKER_IMAGE:$TRAVIS_COMMIT $DOCKER_IMAGE:$BRANCH && docker push $DOCKER_IMAGE:$BRANCH
+    on:
+      tags: true
+      fork: false
+      cron: false
